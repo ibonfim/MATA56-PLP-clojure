@@ -1,43 +1,111 @@
-# Projeto de Gerenciamento de Datashows
+# Sistema de Reservas de Datashow com Auditoria (Clojure)
 
-Este é um projeto simples em Clojure para gerenciar a alocação e desalocação de datashows. Ele permite consultar o status de um datashow, alocar ou desalocar um datashow com base no seu ID.
+## Introdução
+Este projeto implementa um **sistema funcional de gerenciamento de reservas de datashow** com um **log de auditoria** para rastrear todas as ações realizadas. Ele segue o paradigma funcional de Clojure, garantindo **imutabilidade, concorrência segura e programação declarativa**.
 
-## Requisitos
+## Estrutura do Código
 
-Antes de rodar o código, você precisa ter o Clojure instalado em seu sistema. Para isso, siga os passos abaixo.
+### Banco de Dados e Estado
+O sistema utiliza **atoms** para armazenar os dados de forma concorrente e segura:
+```clojure
+(def reservations (atom {}))
+(def audit-log (atom []))
+```
+- `reservations` mantém o estado atual das reservas.
+- `audit-log` registra todas as ações realizadas, permitindo auditoria.
 
-### Instalação do Clojure
+### Processamento de Reservas
+A função `process-reservation` verifica se um datashow já está reservado e, se não estiver, adiciona uma nova reserva e registra a ação no log de auditoria.
+```clojure
+(defn process-reservation [request]
+  (let [{:keys [id user time]} request]
+    (if (get @reservations id)
+      {:status "error" :message "Datashow already reserved"}
+      (do
+        (swap! reservations assoc id {:user user :time time})
+        (swap! audit-log conj {:action "reserve" :id id :user user :time time :timestamp (java.time.LocalDateTime/now)})
+        {:status "success" :message "Reservation confirmed"}))))
+```
+Essa função demonstra **imutabilidade** ao modificar o estado utilizando **swap!**, garantindo que mudanças concorrentes sejam seguras.
 
-1. **Instalar Clojure CLI** (recomendado):
+### Listagem de Reservas
+Para visualizar todas as reservas ativas:
+```clojure
+(defn list-reservations []
+  (if (empty? @reservations)
+    (println "Nenhuma reserva cadastrada.")
+    (doseq [[id {user :user time :time}] @reservations]
+      (println (str "ID: " id " | Usuário: " user " | Horário: " time)))))
+```
+Isso permite que os usuários verifiquem quais datashows estão ocupados.
 
-   - Siga as instruções de instalação para o [Clojure CLI](https://clojure.org/guides/getting_started).
-   - Para verificar se o Clojure está instalado corretamente, execute o comando:
+### Auditoria de Ações
+O sistema mantém um log de todas as ações realizadas:
+```clojure
+(defn show-audit-log []
+  (if (empty? @audit-log)
+    (println "Nenhuma ação registrada no log.")
+    (doseq [entry @audit-log]
+      (println entry))))
+```
+Isso segue o princípio da **imutabilidade**, onde cada modificação é registrada sem alterar estados anteriores.
 
-     ```bash
-     clojure -version
-     ```
+### Testes Automatizados
+O código inclui testes automatizados para verificar a funcionalidade das reservas e do log de auditoria.
+```clojure
+(deftest test-process-reservation
+  (testing "Reservation processing"
+    (reset! reservations {})
+    (reset! audit-log [])
+    (is (= {:status "success" :message "Reservation confirmed"}
+           (process-reservation {:id 1 :user "Alice" :time "10:00"})))
+    (is (= {:status "error" :message "Datashow already reserved"}
+           (process-reservation {:id 1 :user "Bob" :time "11:00"})))
+    (is (= 1 (count @audit-log)))))
+```
+Isso mostra o suporte de Clojure a **testes automatizados** para garantir a confiabilidade do sistema.
 
-2. **Exemplo 1: Consultar o Status de um Datashow**:
-    - Consultando status do datashow 1: :disponivel
-    - Consultando status do datashow 3: :alocado
+## Paradigma Funcional em Clojure
+Clojure enfatiza:
+- **Imutabilidade:** O estado é atualizado com operações atômicas (`swap!`), garantindo consistência e evitando problemas de concorrência.
+- **Funções Puras:** As funções são previsíveis e não alteram estados externos diretamente.
+- **Concorrência Segura:** `atom` permite atualizações controladas sem risco de condições de corrida.
+- **Programação Declarativa:** Em vez de modificar diretamente um estado, descrevemos como ele deve ser transformado.
 
-2. **Exemplo 2: Alocar um Datashow**:
-    - Alocando datashow 1:
-    - ID: 1 Status: :alocado
-    - ID: 2 Status: :disponivel
-    - ID: 3 Status: :alocado
-    - ID: 4 Status: :disponivel
+## Exemplos de Uso
+### Criando uma Reserva
+```clojure
+(process-reservation {:id 1 :user "Alice" :time "10:00"})
+```
+**Saída esperada:**
+```
+{:status "success" :message "Reservation confirmed"}
+```
 
-3. **Exemplo 3: Tentar Alocar um Datashow Já Alocado**:
-    - Desalocando datashow 3:
-    - ID: 1 Status: :alocado
-    - ID: 2 Status: :disponivel
-    - ID: 3 Status: :disponivel
-    - ID: 4 Status: :disponivel
+### Tentativa de Reservar um Datashow Já Ocupado
+```clojure
+(process-reservation {:id 1 :user "Bob" :time "11:00"})
+```
+**Saída esperada:**
+```
+{:status "error" :message "Datashow already reserved"}
+```
 
-4. **Exemplo 4: Desalocar um Datashow**:
-    - Desalocando datashow 3:
-    - ID: 1 Status: :alocado
-    - ID: 2 Status: :disponivel
-    - ID: 3 Status: :disponivel
-    - ID: 4 Status: :disponivel
+### Listando Reservas
+```clojure
+(list-reservations)
+```
+**Saída esperada:**
+```
+ID: 1 | Usuário: Alice | Horário: 10:00
+```
+
+### Exibindo o Log de Auditoria
+```clojure
+(show-audit-log)
+```
+**Saída esperada:**
+```
+{:action "reserve" :id 1 :user "Alice" :time "10:00" :timestamp 2024-02-04T15:30:00}
+```
+
