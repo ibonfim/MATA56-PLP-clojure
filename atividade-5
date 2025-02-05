@@ -1,0 +1,44 @@
+(ns datashow-system.core
+  (:require [clojure.test :refer :all]))
+
+;; Banco de dados em memória (simulação)
+(def reservations (atom {}))
+(def audit-log (atom [])) ;; Log de auditoria
+
+;; Função para processar requisições de reserva
+(defn process-reservation [request]
+  (let [{:keys [id user time]} request]
+    (if (get @reservations id)
+      {:status "error" :message "Datashow already reserved"}
+      (do
+        (swap! reservations assoc id {:user user :time time})
+        (swap! audit-log conj {:action "reserve" :id id :user user :time time :timestamp (java.time.LocalDateTime/now)})
+        {:status "success" :message "Reservation confirmed"}))))
+
+;; Função para listar todas as reservas ativas
+(defn list-reservations []
+  (if (empty? @reservations)
+    (println "Nenhuma reserva cadastrada.")
+    (doseq [[id {user :user time :time}] @reservations]
+      (println (str "ID: " id " | Usuário: " user " | Horário: " time))))) ;; Removido parêntese extra
+
+;; Função para exibir o log de auditoria
+(defn show-audit-log []
+  (if (empty? @audit-log)
+    (println "Nenhuma ação registrada no log.")
+    (doseq [entry @audit-log]
+      (println entry))))
+
+;; Testes
+(deftest test-process-reservation
+  (testing "Reservation processing"
+    (reset! reservations {})
+    (reset! audit-log [])
+    (is (= {:status "success" :message "Reservation confirmed"}
+           (process-reservation {:id 1 :user "Alice" :time "10:00"})))
+    (is (= {:status "error" :message "Datashow already reserved"}
+           (process-reservation {:id 1 :user "Bob" :time "11:00"})))
+    (is (= 1 (count @audit-log))))) ;; Verifica se o log de auditoria foi atualizado
+
+;; Executar testes
+(run-tests)
