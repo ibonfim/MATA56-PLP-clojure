@@ -37,6 +37,46 @@
       (println "Datashow não estava alocado."))
     (println "Datashow não encontrado.")))
 
+;; Converte horário (HH:MM) para minutos desde a meia-noite
+(defn converte-horario [time]
+  (let [[h m] (map #(Integer/parseInt %) (str/split time #":"))]
+    (+ (* h 60) m)))
+
+;; Verifica se há conflito de horários
+(defn conflito? [existing start end]
+  (let [{existing-start :start-time existing-end :end-time} existing
+        s-min (converte-horario start)
+        e-min (converte-horario end)
+        ex-s-min (converte-horario existing-start)
+        ex-e-min (converte-horario existing-end)]
+    (not (or (<= e-min ex-s-min) (>= s-min ex-e-min)))))
+
+;; Adiciona uma nova reserva, se possível
+(defn adicionar-reserva [id start end]
+  (if (not (some #(= (:id %) id) @datashows))
+    (println "Erro: Datashow não existe.")
+    (if (or (contains? @reservas id)
+            (some #(conflito? % start end) (vals @reservas)))
+      (println "Conflito de reserva ou ID já existente.")
+      (do
+        (swap! reservas assoc id {:start-time start :end-time end})
+        (println "Reserva adicionada com sucesso!")))))
+
+;; Remove uma reserva, se existir
+(defn remove-reserva [id]
+  (if (contains? @reservas id)
+    (do
+      (swap! reservas dissoc id)
+      (println "Reserva removida com sucesso!"))
+    (println "Reserva não encontrada.")))
+
+;; Lista todas as reservas ativas
+(defn lista-reservas []
+  (if (empty? @reservas)
+    (println "Nenhuma reserva cadastrada.")
+    (doseq [[id {s :start-time e :end-time}] @reservas]
+      (println (str "ID: " id " | Início: " s " | Fim: " e)))))
+
 ;; Lista todos os datashows
 (defn exibir-datashows [] 
   (doseq [ds @datashows]
@@ -46,30 +86,53 @@
 (defn -main []
   ;; Exibir os datashows iniciais
   (println "Estado inicial dos datashows:")
-  (exibir-datashows datashows)
+  (exibir-datashows) ;; Exibe a lista de datashows
   (println)
 
   ;; Consultar status
-  (println "Consultando status do datashow 1:" (consultar datashows 1))
-  (println "Consultando status do datashow 3:" (consultar datashows 3))
+  (println "Consultando status do datashow 1:" (consultar 1))
+  (println "Consultando status do datashow 3:" (consultar 3))
   (println)
 
   ;; Alocar um datashow
   (println "Alocando datashow 1:")
-  (def datashows (alocar datashows 1)) ;; Reatribui a lista após a alocação
-  (exibir-datashows datashows)
+  (alocar 1) ;; Não é necessário reatribuir, pois a função já altera o estado global
+  (exibir-datashows)
   (println)
 
   ;; Tentar alocar um datashow já alocado
   (println "Tentando alocar datashow 3:")
-  (def datashows (alocar datashows 3)) ;; Reatribui após tentar alocar
-  (exibir-datashows datashows)
+  (alocar 3) ;; Não é necessário reatribuir, pois a função já altera o estado global
+  (exibir-datashows)
   (println)
 
   ;; Desalocar um datashow
   (println "Desalocando datashow 3:")
-  (def datashows (desalocar datashows 3)) ;; Reatribui após desalocar
-  (exibir-datashows datashows))
+  (desalocar 3) ;; Não é necessário reatribuir, pois a função já altera o estado global
+  (exibir-datashows)
+  (println)
+
+  ;; Adicionar uma reserva para o datashow 1
+  (println "Adicionando reserva para o datashow 1:")
+  (adicionar-reserva 1 "10:00" "12:00") ;; Tenta adicionar reserva para o datashow
+  (lista-reservas) ;; Lista as reservas atuais
+  (println)
+
+  ;; Tentar adicionar uma reserva com conflito de horário
+  (println "Tentando adicionar uma reserva com conflito para o datashow 1:")
+  (adicionar-reserva 1 "11:00" "13:00") ;; Tenta adicionar reserva com conflito
+  (lista-reservas) ;; Lista as reservas atuais
+  (println)
+
+  ;; Remover uma reserva
+  (println "Removendo reserva do datashow 1:")
+  (remove-reserva 1) ;; Remove a reserva do datashow
+  (lista-reservas) ;; Lista as reservas atuais
+  (println)
+
+  ;; Exibir estado final dos datashows
+  (println "Estado final dos datashows:")
+  (exibir-datashows))
 
 ;; Executar o código principal
 (-main)
